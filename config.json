@@ -1,0 +1,5 @@
+{
+	"uart_devices": [
+		{"name": "rpi3", "serialid": null, "usb_path": "1-2"}
+	]
+}
