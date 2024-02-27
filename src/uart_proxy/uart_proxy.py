@@ -8,10 +8,11 @@
 
 from fastapi import FastAPI, HTTPException
 import serial
+import os
 import threading
 import queue
 import time
-from tty_usb import TTY_USB
+from .tty_usb import TTY_USB
 
 import json
 
@@ -86,6 +87,10 @@ config = None
 
 class Config:
     def __init__(self, config_file):
+        if not os.path.exists(config_file):
+            print(f"ERROR: Config file at {config_file} not found")
+            exit(-1)
+        
         with open(config_file, 'r') as file:
             self.config = json.load(file)
             self.ip     = self.config["ip"]
@@ -94,7 +99,7 @@ class Config:
     def get_devices(self):
         return { dev["name"]: Device(dev) for dev in self.config["uart_devices"] }
 
-def init_config(config_file = "config.json"):
+def init_config(config_file = "/etc/uart_proxy.json"):
     global config
     config = Config(config_file)
 

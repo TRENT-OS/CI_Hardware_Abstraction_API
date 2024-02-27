@@ -12,7 +12,7 @@ import argparse
  
 import uvicorn
  
-from uart_proxy import app, get_config, init_config
+from .uart_proxy import app, get_config, init_config
 
 
  
