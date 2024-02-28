@@ -13,7 +13,7 @@ import argparse
 import uvicorn
  
 from .uart_proxy import app, get_config, init_config
-
+from .tty_usb import TTY_USB
 
  
 def get_argument_parser():
@@ -27,12 +27,22 @@ def get_argument_parser():
         help="Path to server configuration file",
         required=False,
     )
+    parser.add_argument(
+        "--devices",
+        "-d",
+        action="store_true",
+        help="Print all available devices found"
+    )
     return parser
  
  
 def main():
     parser = get_argument_parser()
     args = parser.parse_args()
+    if args.devices:
+        TTY_USB.get_and_print_device_list()
+        exit(0)
+    
     print("Load Server Configuration")
     if args.configfile:
         init_config(args.configfile)
