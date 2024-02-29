@@ -7,15 +7,23 @@
 #
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 import serial
 import os
 import threading
 import queue
 import time
+import base64
+import requests
+
 from .tty_usb import TTY_USB
 
 import json
 
+
+#===============================================================================
+# Hardware
+#===============================================================================
 
 def read_from_uart_thread(dev):
     while True:
@@ -27,16 +35,23 @@ def read_from_uart_thread(dev):
             dev.port.close()
             break
         line = dev.port.readline()
+        if (len(line) == 0):
+            # readline() encountered a timeout
+            continue
         dev.queue.put(line)
         print(line)
         
 
 class Device:
-    def __init__(self, device):
+    def __init__(self, device, config):
+        self.__device = device
+        self.__config = config
         self.name = device["name"]
         self.serial = device["serialid"]
+        self.poe_id = device["poe_id"]
         self.usb_path = device["usb_path"]
         self.uart = TTY_USB.find_device(self.serial, self.usb_path)
+        
         self.open_port()
         
         self.queue = queue.Queue()
@@ -53,7 +68,7 @@ class Device:
                     bytesize = serial.serialutil.EIGHTBITS,
                     parity   = serial.serialutil.PARITY_NONE,
                     stopbits = serial.serialutil.STOPBITS_ONE,
-                    timeout  = 0.5,
+                    timeout  = 5,
                 )
 
     def init_thread(self):
@@ -66,6 +81,8 @@ class Device:
 
     def stop_thread(self):
         self.event.clear()
+        while not self.queue.empty():
+            self.queue.get()
 
     def join_thread(self):
         self.finish_thread.set()
@@ -73,11 +90,46 @@ class Device:
         self.thread.join()
 
     def print_info(self):
-        info = f"Name: {self.name}\n"
-        info += f"Serial ID: {self.serial}\n"
-        info += f"USB Path: {self.usb_path}\n"
-        # Add more information as needed
-        return info        
+        power_state = "Error" if (ps := self.power_state()) is None else ps
+        
+        return { **self.__device, 
+                 "reading": self.event.is_set(), 
+                 "thread_running": not self.finish_thread.is_set(),
+                 "power_state": power_state } 
+
+    def power_state(self):
+        poe = self.__config["poe_switch"]
+        url = f"{poe['url']}/rest/interface/ethernet/poe"
+        response = requests.get(url, auth=(poe["username"], poe["password"]))
+
+        if not response.ok:
+            return None
+
+        json_res = json.loads(response.text)
+
+        field = next((e for e in json_res if e.get("name") == self.poe_id), {})
+
+        return field.get("poe-out")
+
+    def __switch_power_set(self, mode: str):
+        poe = self.__config["poe_switch"]
+        url = f"{poe['url']}/rest/interface/ethernet/set"
+        return requests.post(
+                url, 
+                auth=(poe["username"], poe["password"]),
+                headers={"Content-Type": "application/json"},
+                json={".id": self.poe_id, "poe-out": mode},
+                verify=False
+                )
+        
+    def power_on(self):
+        return self.__switch_power_set("auto-on").ok
+
+
+    def power_off(self):
+        return self.__switch_power_set("off").ok
+        
+        
 
 #===============================================================================
 # Config
@@ -97,7 +149,7 @@ class Config:
             self.port   = self.config["port"]
 
     def get_devices(self):
-        return { dev["name"]: Device(dev) for dev in self.config["uart_devices"] }
+        return { dev["name"]: Device(dev, self.config) for dev in self.config["devices"] }
 
 def init_config(config_file = "/etc/uart_proxy.json"):
     global config
@@ -107,7 +159,6 @@ def get_config():
     if config is None:
         init_config()
     return config
-
 
 
 #===============================================================================
@@ -126,11 +177,54 @@ async def startup_event():
 async def device_info(device: str):
     if device not in devices:
         raise HTTPException(status_code=404, detail="Device not found")
-    return devices[device].print_info()
+    return JSONResponse(content=devices[device].print_info())
         
 
-@app.post("/{device}/start")
-async def device_start(device: str):
+@app.post("/{device}/power/state")
+async def device_power_state(device: str):
+    if device not in devices:
+        raise HTTPException(status_code=404, detail="Device not found")
+    dev = devices[device]
+    power_state = dev.power_state()
+
+    if power_state is None:
+        raise HTTPException(status_code=502, detail="Retrieving information from switch failed")
+    return power_state
+    
+  
+
+@app.post("/{device}/power/on")
+async def device_power_on(device: str):
+    if device not in devices:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    dev = devices[device]
+    if not dev.power_on():
+        raise HTTPException(status_code=502, detail="Request to switch failed")
+    
+
+
+@app.post("/{device}/power/off")
+async def device_power_off(device: str): 
+    if device not in devices:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    dev = devices[device]
+    if not dev.power_off():
+        raise HTTPException(status_code=502, detail="Request to switch failed")
+    
+
+@app.get("/{device}/uart/state")
+async def device_uart_state(device: str):
+    if device not in devices:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    dev = devices[device]
+    return str(not dev.event.is_set())
+
+
+@app.post("/{device}/uart/start")
+async def device_uart_start(device: str):
     if device not in devices:
         raise HTTPException(status_code=404, detail="Device not found")
 
@@ -138,8 +232,8 @@ async def device_start(device: str):
     dev.start_thread()
 
 
-@app.post("/{device}/stop")
-async def device_stop(device: str):
+@app.post("/{device}/uart/stop")
+async def device_uart_stop(device: str):
     if device not in devices:
         raise HTTPException(status_code=404, detail="Device not found")
 
@@ -147,8 +241,8 @@ async def device_stop(device: str):
     dev.stop_thread()
 
 
-@app.get("/{device}/readline")
-async def device_readline(device: str):
+@app.get("/{device}/uart/readline")
+async def device_uart_readline(device: str):
     if device not in devices:
         raise HTTPException(status_code=404, detail="Device not found")
 
@@ -159,8 +253,9 @@ async def device_readline(device: str):
     if dev.queue.empty():
         raise HTTPException(status_code=202, detail="No data in the queue")
 
-    return dev.queue.get()
-    
+    return base64.b64encode(dev.queue.get())
+
+   
 @app.on_event("shutdown")
 async def shutdown_event():
     print("shutting down")

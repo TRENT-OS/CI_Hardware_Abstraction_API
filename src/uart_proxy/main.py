@@ -9,13 +9,14 @@
 #
 
 import argparse
- 
+
 import uvicorn
+
  
 from .uart_proxy import app, get_config, init_config
 from .tty_usb import TTY_USB
 
- 
+
 def get_argument_parser():
     parser = argparse.ArgumentParser(
         description="Uart proxy"
@@ -42,7 +43,7 @@ def main():
     if args.devices:
         TTY_USB.get_and_print_device_list()
         exit(0)
-    
+
     print("Load Server Configuration")
     if args.configfile:
         init_config(args.configfile)
