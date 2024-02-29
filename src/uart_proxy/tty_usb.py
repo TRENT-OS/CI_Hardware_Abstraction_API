@@ -113,15 +113,15 @@ class TTY_USB():
                     my_device = dev
                     break
 
-        if usb_path is not None:
+        elif usb_path is not None:
             for dev in dev_list:
                 print(f"serial comparison: {dev.usb_path} : {usb_path}")
                 if (dev.usb_path == usb_path):
                     my_device = dev
                     break
 
-        #else:
-        #    raise Exception('must specify device, serial and/or USB path')
+        else:
+            raise Exception('must specify device, serial and/or USB path')
 
         if not my_device:
             raise Exception('device not found')

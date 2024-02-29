@@ -220,7 +220,7 @@ async def device_uart_state(device: str):
         raise HTTPException(status_code=404, detail="Device not found")
 
     dev = devices[device]
-    return str(not dev.event.is_set())
+    return str(dev.event.is_set())
 
 
 @app.post("/{device}/uart/start")
