@@ -6,7 +6,7 @@
 # For commercial licensing, contact: info.cyber@hensoldt.net
 #
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, File, UploadFile
 from fastapi.responses import JSONResponse
 import serial
 import os
@@ -15,6 +15,8 @@ import queue
 import time
 import base64
 import requests
+import subprocess
+import pathlib
 
 from .tty_usb import TTY_USB
 
@@ -129,7 +131,83 @@ class Device:
     def power_off(self):
         return self.__switch_power_set("off").ok
         
+    
+#===============================================================================
+# TFTP BOOT
+#===============================================================================
         
+class TFTP:
+    def __init__(self, tftp_folder="/tftpboot/"):
+        self.tftp_folder = tftp_folder
+        self.trentos_image_name = "os_image.elf"
+
+    reply = {}
+
+    @staticmethod
+    def __check_xinetd_status():
+        try:
+            output = subprocess.check_output(["systemctl", "status", "xinetd"]).decode("utf-8")
+        except Exception as e:
+            return f"Failed to retrieve status due to: {e}"
+        if all(substr in output for substr in ("Active: active", "Loaded: loaded")):
+            return "service runnning"
+        return "service not running"
+
+    @staticmethod
+    def __xinet_tftp_service_status():
+        xinetd_config = "/etc/xinetd.d/tftp"
+        if not os.path.exists(xinetd_config):
+            return "Error config does not exist"
+
+        with open(xinetd_config, "r") as file:
+            data = file.read()
+
+        inner_data = data[data.find('{')+1:data.find('}')].strip()
+        key_value_pairs = [line.strip().split('=') for line in inner_data.split('\n')]
+        return {key.strip(): value.strip() for key, value in key_value_pairs}
+
+
+    def status(self, device):
+        return {
+            "xinetd": self.__check_xinetd_status(),
+            "xinet_tftp_config": self.__xinet_tftp_service_status(),
+            "tftp_folder": {
+                "tftp/": os.path.exists(pathlib.Path(self.tftp_folder)),
+                "device/": os.path.exists(pathlib.Path(self.tftp_folder) / device),
+                "trentos_image": os.path.exists(pathlib.Path(self.tftp_folder) / device / self.trentos_image_name)
+            }
+        }
+
+
+    def __validate_file(self, filename):
+        return filename != self.trentos_image_name
+
+
+    async def upload(self, device, file):
+        if self.__validate_file(file.filename):
+            return (422, "The uploaded file is not the TRENTOS executable expected")
+
+        file_location = pathlib.Path(self.tftp_folder) / device / self.trentos_image_name
+        try:
+            with open(file_location, "wb") as tftp_file:
+                tftp_file.write(await file.read())
+            return (200, "Upload successfull")
+        except Exception as e:
+            print(f"Exception during file processing occured: {e}")
+            return (500, "Saving file saved due to server error")
+        
+
+    def delete(self, device):
+        file_location = pathlib.Path(self.tftp_folder) / device / self.trentos_image_name
+        try:
+            os.remove(file_location)
+            return (200, "File deleted succesfully")
+        except Exception as e:
+            print(f"Exception during file processing occured: {e}")
+            return (500, "Saving file saved due to server error")            
+        
+
+
 
 #===============================================================================
 # Config
@@ -167,6 +245,7 @@ def get_config():
 
 app = FastAPI()
 devices = None
+tftp = TFTP()
 
 @app.on_event("startup")
 async def startup_event():
@@ -177,7 +256,8 @@ async def startup_event():
 async def device_info(device: str):
     if device not in devices:
         raise HTTPException(status_code=404, detail="Device not found")
-    return JSONResponse(content=devices[device].print_info())
+    info = {**devices[device].print_info(), "tftp": tftp.status(device)}
+    return JSONResponse(content=info)
         
 
 @app.post("/{device}/power/state")
@@ -190,8 +270,7 @@ async def device_power_state(device: str):
     if power_state is None:
         raise HTTPException(status_code=502, detail="Retrieving information from switch failed")
     return power_state
-    
-  
+      
 
 @app.post("/{device}/power/on")
 async def device_power_on(device: str):
@@ -254,6 +333,30 @@ async def device_uart_readline(device: str):
         raise HTTPException(status_code=202, detail="No data in the queue")
 
     return base64.b64encode(dev.queue.get())
+
+@app.get("/{device}/tftp/state")
+async def device_tftp_state(device: str):
+    if device not in devices:
+        raise HTTPException(status_code=404, detail="Device not found")
+    
+    return JSONResponse(content=tftp.status(device))
+
+
+@app.post("/{device}/tftp/upload")
+async def device_tftp_upload(device: str, file: UploadFile = File(...)):
+    if device not in devices:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    error_code, error_msg = await tftp.upload(device, file)
+    if error_code != 200:
+        raise HTTPException(status_code=error_code, detail=error_msg)
+
+
+@app.delete("/{device}/tftp/delete")
+async def device_tftp_delete(device: str):
+    if device not in devices:
+        raise HTTPException(status_code=404, detail="Device not found")
+    tftp.delete(device)
 
    
 @app.on_event("shutdown")

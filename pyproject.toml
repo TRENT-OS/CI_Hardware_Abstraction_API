@@ -19,6 +19,7 @@ dependencies=[
     "requests",
     "uvicorn",
     "pyserial",
+    "python-multipart",
 ]
  
 [project.scripts]
