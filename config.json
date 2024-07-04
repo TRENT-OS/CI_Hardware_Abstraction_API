@@ -2,7 +2,11 @@
 	"ip": "127.0.0.1",
 	"port": 8000,
 	"devices": [
-		{"name": "rpi3", "serialid": null, "usb_path": "1-2", "poe_id": "ether1"}
+		{"name": "rpi3", "serialid": null, "usb_path": "1-2", "poe_id": "ether1"},
+		{"name": "rpi4", "serialid": null, "usb_path": "1-3", "poe_id": "ether3", "data_uart": {
+				"serialid": null,
+				"usb_path": "1-4"
+		}}
 	],
 	"poe_switch": {
 		"url": "http://192.168.88.1", 

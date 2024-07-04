@@ -2,7 +2,7 @@
 
 #
 # Copyright (C) 2024, HENSOLDT Cyber GmbH
-# 
+#
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
 # For commercial licensing, contact: info.cyber@hensoldt.net
@@ -12,15 +12,14 @@ import argparse
 
 import uvicorn
 
- 
-from .uart_proxy import app, get_config, init_config
+from .config import get_config, init_config
 from .tty_usb import TTY_USB
+from .uart_proxy import app
 
 
 def get_argument_parser():
     parser = argparse.ArgumentParser(
-        description="Uart proxy"
-        "provide uart read access via an API"
+        description="Uart proxy" "provide uart read access via an API"
     )
     parser.add_argument(
         "--configfile",
@@ -29,14 +28,11 @@ def get_argument_parser():
         required=False,
     )
     parser.add_argument(
-        "--devices",
-        "-d",
-        action="store_true",
-        help="Print all available devices found"
+        "--devices", "-d", action="store_true", help="Print all available devices found"
     )
     return parser
- 
- 
+
+
 def main():
     parser = get_argument_parser()
     args = parser.parse_args()
@@ -52,7 +48,7 @@ def main():
     print("Starting Webserver!")
     config = get_config()
     uvicorn.run(app=app, host=config.ip, port=config.port, log_level="info")
- 
- 
+
+
 if __name__ == "__main__":
     main()
