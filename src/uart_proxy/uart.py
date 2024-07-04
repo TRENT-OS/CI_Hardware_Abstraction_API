@@ -16,15 +16,33 @@ class UART_STATE(Enum):
     RECEIVING = 4
 
 
-class UART:
+class Uart:
     def __init__(self, device: str, serial: str, usb_path: str):
+        self.reader, self.writer = None, None
         self.device = device
         self.serial = serial
         self.usb_path = usb_path
-        self.queue = asyncio.Queue()
-        self.reading_state = asyncio.Event()
         self.find_uart_device()
-        self.port = None
+
+    def __del__(self):
+        if self.writer is not None:
+            self.writer.close()
+
+    async def open_port(self):
+        try:
+            self.reader, self.writer = await serial_asyncio.open_serial_connection(
+                url=self.uart.device,
+                baudrate=115200,
+                bytesize=serial.EIGHTBITS,
+                parity=serial.PARITY_NONE,
+                stopbits=serial.STOPBITS_ONE,
+            )
+            self.state = UART_STATE.CONNECTED
+        except Exception as e:
+            print(
+                f"Exception occurred during opening of UART Device for {self.device}:\n{e}"
+            )
+            self.state = UART_STATE.ERROR
 
     def find_uart_device(self):
         try:
@@ -37,27 +55,18 @@ class UART:
             )
             self.state = UART_STATE.INIT_FAILED
 
-    async def open_port(self):
-        try:
-            self.port, _ = await serial_asyncio.open_serial_connection(
-                url=self.uart.device,
-                baudrate=115200,
-                bytesize=serial.EIGHTBITS,
-                parity=serial.PARITY_NONE,
-                stopbits=serial.STOPBITS_ONE,
-            )
-            asyncio.create_task(self.read_from_uart())
-            self.state = UART_STATE.CONNECTED
-        except Exception as e:
-            print(
-                f"Exception occurred during opening of UART Device for {self.device}:\n{e}"
-            )
-            self.state = UART_STATE.ERROR
+
+class LogUart(Uart):
+    def __init__(self, device: str, serial: str, usb_path: str):
+        super().__init__(device, serial, usb_path)
+
+        self.queue = asyncio.Queue()
+        self.reading_state = asyncio.Event()
 
     async def read_from_uart(self):
         while True:
             await self.reading_state.wait()
-            line = await self.port.readline()
+            line = await self.reader.readline()
             if line:
                 await self.queue.put(line)
                 print(line)
@@ -65,9 +74,13 @@ class UART:
     def is_reading(self):
         return self.reading_state.is_set()
 
+    async def initialize_uart_reading(self):
+        await self.open_port()
+        asyncio.create_task(self.read_from_uart())
+
     async def start_reading(self):
         if self.state is UART_STATE.UNINITIALIZED:
-            await self.open_port()
+            await self.initialize_uart_reading()
 
         if self.state is UART_STATE.INIT_FAILED or self.state is UART_STATE.ERROR:
             raise HTTPException(
@@ -81,10 +94,12 @@ class UART:
         self.state = UART_STATE.CONNECTED
 
 
-class DataUart:
-    def __init__(self, device, config, websocket):
-        self.device = device
-        self.config = config
-        self.uart = UART(device["name"], device["serialid"], device["usb_path"])
-        self.websocket = websocket
-        
+class DataUart(Uart):
+    async def read(self, callback):
+        while True:
+            data = await self.reader.read(1)
+            await callback(data.decode())
+
+    async def write(self, data):
+        self.writer.write(data.encode())
+        await self.writer.drain()

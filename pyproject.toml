@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
  
 [project]
 name = "uart_proxy"
-version = "0.0.3"
+version = "0.0.4"
 authors = [
     { name="Felix Schladt", email="felix.schladt@hensoldt.net" },
 ]

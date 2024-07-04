@@ -18,7 +18,7 @@ class Config:
             self.port = self.config["port"]
 
     async def get_devices(self):
-        return { dev["name"]: Device(dev, self.config) for dev in self.config["devices"] }
+        return {dev["name"]: Device(dev, self.config) for dev in self.config["devices"]}
 
     # Returns a safe copy of the config without credentials
     def get_clean_config(self):
