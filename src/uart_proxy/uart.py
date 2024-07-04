@@ -56,9 +56,7 @@ class UART:
 
     async def read_from_uart(self):
         while True:
-            print("Awaiting data event to be true")
             await self.reading_state.wait()
-            print("Reading from UART")
             line = await self.port.readline()
             if line:
                 await self.queue.put(line)
@@ -84,5 +82,9 @@ class UART:
 
 
 class DataUart:
-    def __init__(self, device, config):
-        pass
+    def __init__(self, device, config, websocket):
+        self.device = device
+        self.config = config
+        self.uart = UART(device["name"], device["serialid"], device["usb_path"])
+        self.websocket = websocket
+        

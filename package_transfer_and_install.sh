@@ -12,5 +12,5 @@ ssh dietpi@192.168.88.4 << EOF
 	source venv/bin/activate
 	pip uninstall uart_proxy -y
 	pip install /tmp/uart_proxy-0.0.3-py3-none-any.whl --no-input
-	#/sbin/reboot
+	/sbin/reboot
 EOF

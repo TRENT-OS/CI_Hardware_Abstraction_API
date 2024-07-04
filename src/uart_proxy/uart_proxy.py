@@ -37,10 +37,8 @@ class Device:
         self.__device = device
         self.__config = config
         self.name = device["name"]
-        self.serial = device["serialid"]
         self.poe_id = device["poe_id"]
-        self.usb_path = device["usb_path"]
-        self.uart = UART(self.name, self.serial, self.usb_path)
+        self.uart = UART(self.name, device["uart"]["serialid"], device["uart"]["usb_path"])
 
     def print_info(self):
         power_state = "Error" if (ps := self.power_state()) is None else ps
@@ -74,6 +72,9 @@ class Device:
 
     def power_off(self):
         return self.__switch_power_set("off").ok
+    
+    async def data_uart(websocket):
+        pass
 
     @staticmethod
     def get_device(device):
@@ -225,8 +226,9 @@ async def device_data_uart_stop(device: str):
 
 @app.websocket("/{device}/data_uart/connect")
 async def device_data_uart_connect(device: str, websocket: WebSocket):
+    await websocket.accept()
     dev = Device.get_device(device)
-    pass
+    
 
 
 

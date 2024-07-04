@@ -1,15 +1,46 @@
 {
-	"ip": "127.0.0.1",
+	"ip": "192.168.88.4",
 	"port": 8000,
 	"devices": [
-		{"name": "rpi3", "serialid": null, "usb_path": "1-2", "poe_id": "ether1"},
-		{"name": "rpi4", "serialid": null, "usb_path": "1-3", "poe_id": "ether3", "data_uart": {
+		{
+			"name": "rpi3",
+			"poe_id": "ether1",
+			"uart": {
+				"serialid": null, 
+				"usb_path": "1-2"
+			}
+		},
+		{
+			"name": "rpi4",
+			"poe_id": "ether3", 
+			"uart": {
+				"serialid": null,
+				"usb_path": "1-3"
+			},
+			"data_uart": {
 				"serialid": null,
 				"usb_path": "1-4"
-		}}
+			}
+		},
+		{
+			"name": "odroidc2",
+			"poe_id": "ether9",
+			"uart": {
+				"serialid": null, 
+				"usb_path": "1-1.3.3"
+			}
+		},
+		{
+			"name": "jetson-nano-2gb-dev-kit",
+			"poe_id": "ether11",
+			"uart": {
+				"serialid": null, 
+				"usb_path": "1-1.2.1"
+			}
+		}
 	],
 	"poe_switch": {
-		"url": "http://192.168.88.1", 
+		"url": "http://192.168.88.1",
 		"username": "admin",
 		"password": ""
 	}
