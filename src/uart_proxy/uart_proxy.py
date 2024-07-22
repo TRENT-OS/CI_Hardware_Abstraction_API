@@ -298,5 +298,3 @@ async def device_tftp_delete(device: str):
 @app.on_event("shutdown")
 async def shutdown_event():
     print("shutting down")
-    [dev.join_thread() for dev in devices.values()]
-    print("all threads joined.")

@@ -60,6 +60,9 @@ class TFTP:
         if self.__validate_file(file.filename):
             return (422, "The uploaded file is not the TRENTOS executable expected")
 
+        if not os.path.exists(pathlib.Path(self.tftp_folder) / device):
+            os.makedirs(pathlib.Path(self.tftp_folder) / device)
+
         file_location = (
             pathlib.Path(self.tftp_folder) / device / self.trentos_image_name
         )

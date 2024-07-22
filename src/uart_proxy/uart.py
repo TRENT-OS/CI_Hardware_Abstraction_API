@@ -69,7 +69,6 @@ class LogUart(Uart):
             line = await self.reader.readline()
             if line:
                 await self.queue.put(line)
-                print(line)
 
     def is_reading(self):
         return self.reading_state.is_set()
@@ -79,13 +78,18 @@ class LogUart(Uart):
         asyncio.create_task(self.read_from_uart())
 
     async def start_reading(self):
+        self.queue = asyncio.Queue() #Flush queue
+
         if self.state is UART_STATE.UNINITIALIZED:
+            print("UART not initialized, trying initialization")
             await self.initialize_uart_reading()
 
         if self.state is UART_STATE.INIT_FAILED or self.state is UART_STATE.ERROR:
+            print("UART initialization failed, exiting")
             raise HTTPException(
                 status_code=500, detail="Failed to initialize UART Device"
             )
+
         self.reading_state.set()
         self.state = UART_STATE.RECEIVING
 
