@@ -99,20 +99,14 @@ class Device:
         await data_uart.open_port()
 
         async def uart_callback(data):
-            print("Received Data from Uart: ", data)
-            await websocket.send_text(data)
+            await websocket.send_bytes(data)
 
         # Uart read loops, this will run until the websocket disconnects
         uart_read_task = asyncio.create_task(data_uart.read(uart_callback))
 
-        print("Entering data uart read loop for ", self.name)
-
         try:
             while True:
-                print("Waiting for data from WS...")
-                data = await websocket.receive_text()
-
-                print("Received Data from WS: ", data)
+                data = await websocket.receive_bytes()
                 await data_uart.write(data)
 
         except WebSocketDisconnect:
@@ -125,7 +119,6 @@ class Device:
                 await uart_read_task
             except asyncio.CancelledError:
                 pass
-            # await websocket.close(code=1006)
 
     @staticmethod
     def get_device(device):

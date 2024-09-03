@@ -1,3 +1,12 @@
+#
+# Copyright (C) 2024, HENSOLDT Cyber GmbH
+#
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# For commercial licensing, contact: info.cyber@hensoldt.net
+#
+
+
 import asyncio
 from enum import Enum
 
@@ -102,8 +111,8 @@ class DataUart(Uart):
     async def read(self, callback):
         while True:
             data = await self.reader.read(1)
-            await callback(data.decode())
+            await callback(data)
 
     async def write(self, data):
-        self.writer.write(data.encode())
+        self.writer.write(data)
         await self.writer.drain()

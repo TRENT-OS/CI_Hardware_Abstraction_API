@@ -47,7 +47,14 @@ def main():
         init_config()
     print("Starting Webserver!")
     config = get_config()
-    uvicorn.run("uart_proxy.uart_proxy:app", host=config.ip, port=config.port, log_level="debug")
+    uvicorn.run(
+        "uart_proxy.uart_proxy:app", 
+        host=config.ip, 
+        port=config.port, 
+        log_level="error",
+        ws_ping_interval=800,  # Websocket ping interval
+        ws_ping_timeout=800,   # Websocket ping timeout
+    )
 
 
 if __name__ == "__main__":
